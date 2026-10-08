@@ -1,0 +1,344 @@
+<title>Early Vote Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a returns-desk ledger. State tabs on top; each state reads summary table -> race chart -> detail tables. */
+:root {
+  --bg: #f6f7f5; --panel: #ffffff; --ink: #17191c; --ink-2: #4a5058; --ink-3: #7b828b;
+  --rule: #dfe2e0; --grid: #eceeec; --accent: #1f3a5f; --chip: #eef1f4;
+  --dem: #2f5fc4; --rep: #c4342f; --una: #0e8a6a; --tot: #17191c;
+  --up: #1d6f42; --down: #a3362e;
+  --f-body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131518; --panel: #1b1e22; --ink: #e8eaed; --ink-2: #b3b9c1; --ink-3: #868d96;
+  --rule: #2c3036; --grid: #23272c; --accent: #9dbbe6; --chip: #252a30;
+  --dem: #5f8be0; --rep: #de5a54; --una: #2aa585; --tot: #e8eaed; --up: #5cc08a; --down: #ec7d74; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131518; --panel: #1b1e22; --ink: #e8eaed; --ink-2: #b3b9c1; --ink-3: #868d96;
+  --rule: #2c3036; --grid: #23272c; --accent: #9dbbe6; --chip: #252a30;
+  --dem: #5f8be0; --rep: #de5a54; --una: #2aa585; --tot: #e8eaed; --up: #5cc08a; --down: #ec7d74; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+h1 { font-weight: 800; font-size: 30px; letter-spacing: -0.02em; margin: 0; line-height: 1.1 }
+.sub { color: var(--ink-2); margin: 4px 0 0; font-size: 14px }
+.tabs { display: flex; gap: 4px; }
+.tabs button, .seg button { font: 600 14px var(--f-body); border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); padding: 8px 14px; cursor: pointer; }
+.tabs button { border-radius: 6px 6px 0 0; border-bottom: none }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+.seg { display: inline-flex; }
+.seg button { padding: 5px 11px; font-size: 13px; margin-left: -1px }
+.seg button:first-child { border-radius: 5px 0 0 5px; margin-left: 0 } .seg button:last-child { border-radius: 0 5px 5px 0 }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent) }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.asof { font: 500 13px var(--f-mono); color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 18px 0 6px }
+.pill { background: var(--chip); padding: 2px 8px; border-radius: 99px; }
+section.block { margin-top: 30px; }
+h2 { font-size: 19px; font-weight: 800; margin: 0 0 2px; text-wrap: balance; letter-spacing: -0.01em }
+.lede { color: var(--ink-2); margin: 0 0 12px; max-width: 72ch; font-size: 14px }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 8px 0 10px; font-size: 13px; color: var(--ink-2) }
+.controls label { font-weight: 600; margin-right: 6px; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--ink-3) }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; min-width: 0 }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--rule); vertical-align: bottom }
+td.l, th.l { text-align: left } td.grp { color: var(--ink-2) }
+tr.party-start td { border-top: 1px solid var(--rule) }
+.pdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0 }
+.ratio { font-weight: 600; display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end }
+.ratio .bar { width: 64px; height: 8px; background: var(--grid); position: relative; border-radius: 2px }
+.ratio .bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px }
+.ratio .bar b { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--ink-3) }
+.up { color: var(--up) } .down { color: var(--down) }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible }
+.chart text { font-family: var(--f-body); fill: var(--ink-3); font-size: 11px }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 170px; z-index: 2; font-variant-numeric: tabular-nums }
+.tip h4 { margin: 0 0 4px; font-size: 12px; color: var(--ink) }
+.tip div { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-2) }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px }
+.notes { font-size: 13px; color: var(--ink-2); max-width: 80ch }
+.notes li { margin-bottom: 6px }
+.asof a, .notes a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
+.chip-toggle { font: 600 12px var(--f-body); border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); border-radius: 99px; padding: 3px 10px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center }
+.chip-toggle[aria-pressed="false"] { opacity: .45 }
+@media (max-width: 560px) { h1 { font-size: 24px } .wrap { padding-inline: 16px } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Early Vote Tracker</h1>
+      <p class="sub">Accepted early and absentee ballots per 100k registrants, compared with past cycles at the same days before Election Day.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-nc" aria-selected="true" data-state="nc">North Carolina</button>
+      <button role="tab" id="tab-me" aria-selected="false" data-state="me">Maine</button>
+    </div>
+  </header>
+
+  <main id="nc" role="tabpanel"></main>
+  <main id="me" role="tabpanel" hidden></main>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PC = { D: "--dem", R: "--rep", U: "--una", DEM: "--dem", REP: "--rep", UNA: "--una", dem: "--dem", rep: "--rep", una: "--una", total: "--tot", ALL: "--tot" };
+const PNAME = { D: "Democrats", R: "Republicans", U: "Unenrolled", DEM: "Democrats", REP: "Republicans", UNA: "Unaffiliated", dem: "Democrats", rep: "Republicans", una: "Unaffiliated", total: "All voters", ALL: "All voters" };
+const DASH = { 2020: "1 4 6 4", 2022: "2 4", 2024: "7 4", 2026: "" };
+const YOP = { 2020: .55, 2022: .6, 2024: .8, 2026: 1 };
+const fmt = (v, d = 0) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtDate = s => { const [y, m, d] = s.split("-"); return `${+m}/${+d}/${y}` };
+const el = (tag, attrs = {}, html = "") => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); e.innerHTML = html; return e };
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d } catch { return d } }, set(k, v) { try { localStorage.setItem(k, v) } catch {} } };
+
+function ratioCell(r, invertNote) {
+  if (r == null || isNaN(r)) return "–";
+  const span = Math.max(-1, Math.min(1, Math.log2(r)));  // bar: 0.5x .. 2x
+  const w = Math.abs(span) * 50, cls = r >= 1 ? "up" : "down";
+  const left = span >= 0 ? 50 : 50 - w;
+  return `<span class="ratio ${cls}">${fmt(r, 2)}×<span class="bar"><i style="left:${left}%;width:${w}%;background:currentColor"></i><b></b></span></span>`;
+}
+
+// ---------- line chart (days out on x, reversed; per-100k on y, log or linear) ----------
+function lineChart(host, { series, nowX, log = true, yLabel, xMax = 60, height = 380, nowLabel }) {
+  host.innerHTML = "";
+  const W = 1000, H = height, m = { l: 62, r: 120, t: 16, b: 40 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const vals = series.flatMap(s => s.points.map(p => p[1])).filter(v => v > 0);
+  if (!vals.length) { host.textContent = "No data for this selection."; return }
+  let y0, y1, ys;
+  if (log) {
+    y0 = Math.pow(10, Math.floor(Math.log10(Math.min(...vals.filter(v => v >= 1), 1e9) || 1)));
+    y0 = Math.max(1, y0); y1 = Math.pow(10, Math.ceil(Math.log10(Math.max(...vals))));
+    ys = v => m.t + ph - (Math.log10(Math.max(v, y0)) - Math.log10(y0)) / (Math.log10(y1) - Math.log10(y0)) * ph;
+  } else {
+    y0 = 0; const mx = Math.max(...vals); const step = Math.pow(10, Math.floor(Math.log10(mx))); y1 = Math.ceil(mx / step) * step;
+    ys = v => m.t + ph - (v - y0) / (y1 - y0) * ph;
+  }
+  const xs = d => m.l + (xMax - d) / xMax * pw;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", yLabel);
+  const add = (tag, a, txt) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; svg.appendChild(e); return e };
+  // grid + y ticks
+  const ticks = [];
+  if (log) for (let v = y0; v <= y1; v *= 10) ticks.push(v);
+  else for (let i = 0; i <= 5; i++) ticks.push(y0 + (y1 - y0) * i / 5);
+  ticks.forEach(v => { add("line", { x1: m.l, x2: m.l + pw, y1: ys(v), y2: ys(v), stroke: css("--grid"), "stroke-width": 1 });
+    add("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, fmt(v)) });
+  for (let d = 0; d <= xMax; d += 10) add("text", { x: xs(d), y: m.t + ph + 18, "text-anchor": "middle" }, d);
+  add("text", { x: m.l + pw / 2, y: H - 4, "text-anchor": "middle" }, "Days before Election Day");
+  add("text", { x: 14, y: m.t + ph / 2, "text-anchor": "middle", transform: `rotate(-90 14 ${m.t + ph / 2})` }, yLabel + (log ? " (log scale)" : ""));
+  add("line", { x1: m.l, x2: m.l + pw, y1: m.t + ph, y2: m.t + ph, stroke: css("--ink-3"), "stroke-width": 1 });
+  if (nowX != null) {
+    add("line", { x1: xs(nowX), x2: xs(nowX), y1: m.t, y2: m.t + ph, stroke: css("--ink-3"), "stroke-width": 1, "stroke-dasharray": "3 3" });
+    add("text", { x: xs(nowX) + 6, y: m.t + 10 }, nowLabel || `${nowX} days out`);
+  }
+  // lines
+  const ends = [];
+  series.forEach(s => {
+    const pts = s.points.filter(p => p[0] <= xMax && (!log || p[1] > 0)).sort((a, b) => b[0] - a[0]);
+    if (!pts.length) return;
+    add("path", { d: pts.map((p, i) => `${i ? "L" : "M"}${xs(p[0]).toFixed(1)},${ys(p[1]).toFixed(1)}`).join(""),
+      fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash || "", opacity: s.opacity ?? 1,
+      "stroke-linejoin": "round", "stroke-linecap": "round" });
+    const last = pts[pts.length - 1];
+    if (s.endLabel) { add("circle", { cx: xs(last[0]), cy: ys(last[1]), r: 4, fill: s.color, stroke: css("--panel"), "stroke-width": 2, opacity: s.opacity ?? 1 });
+      ends.push({ x: xs(last[0]), y: ys(last[1]), text: `${s.short} ${fmt(last[1])}`, color: s.color }) }
+  });
+  ends.sort((a, b) => a.y - b.y); let prev = -1e9;
+  ends.forEach(e => { const y = Math.max(e.y + 4, prev + 14); prev = y;
+    add("text", { x: e.x + 8, y, style: `fill:${css("--ink")};font-weight:600` }, e.text) });
+  // hover layer
+  const cross = add("line", { y1: m.t, y2: m.t + ph, stroke: css("--ink-2"), "stroke-width": 1, visibility: "hidden" });
+  const hit = add("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" });
+  const tip = el("div", { class: "tip", hidden: "" });
+  host.append(svg, tip);
+  const lookup = series.map(s => ({ s, map: new Map(s.points.map(p => [p[0], p])) }));
+  function move(ev) {
+    const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W;
+    const d = Math.round(xMax - (px - m.l) / pw * xMax); if (d < 0 || d > xMax) return hide();
+    cross.setAttribute("x1", xs(d)); cross.setAttribute("x2", xs(d)); cross.setAttribute("visibility", "visible");
+    const rowsH = lookup.map(({ s, map }) => { const p = map.get(d); return p ? `<div><span><span class="pdot" style="background:${s.color};opacity:${s.opacity ?? 1}"></span>${s.label}</span><b>${fmt(p[1], p[1] < 10 ? 1 : 0)}${p[2] != null ? ` <span style="color:var(--ink-3);font-weight:400">(${fmt(p[2])})</span>` : ""}</b></div>` : "" }).join("");
+    tip.innerHTML = `<h4>${d} days out</h4>${rowsH || "<div>No data</div>"}`; tip.hidden = false;
+    const hx = (xs(d) / W) * r.width; const tw = tip.offsetWidth;
+    tip.style.left = (hx + tw + 16 > r.width ? hx - tw - 12 : hx + 12) + "px"; tip.style.top = "10px";
+  }
+  function hide() { cross.setAttribute("visibility", "hidden"); tip.hidden = true }
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerleave", hide);
+}
+
+function legend(items) {
+  return `<div class="legend">${items.map(i => `<span><svg width="30" height="10"><line x1="1" x2="29" y1="5" y2="5" stroke="${i.color}" stroke-width="2.5" stroke-dasharray="${i.dash || ""}" opacity="${i.opacity ?? 1}" stroke-linecap="round"/></svg>${i.label}</span>`).join("")}</div>`;
+}
+
+function seg(id, options, current, onChange) {
+  const wrap = el("div", { class: "seg", role: "group", id });
+  options.forEach(([v, label]) => { const b = el("button", { type: "button", "aria-pressed": String(v === current) }, label);
+    b.onclick = () => { wrap.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", "true"); onChange(v) };
+    wrap.appendChild(b) });
+  return wrap;
+}
+
+// ================= NORTH CAROLINA =================
+function renderNC() {
+  const D = DATA.nc, root = document.getElementById("nc");
+  root.innerHTML = `
+    <div class="asof"><span class="pill">2026 data through ${fmtDate(D.asof)}</span><span class="pill">${D.days_out} days out</span><span class="pill">Source: NCSBE absentee, voter, and history files</span></div>
+    <section class="block">
+      <h2>Mail returns per 100k registrants, by party and 2022 vote history</h2>
+      <p class="lede">Each row is the return rate among registrants in that party and history group. The ratio compares 2026 with 2022 at the same days out. Party is party at ballot request; history is 2020/2022/2024 general turnout (2016/2018/2020 for the 2022 baseline).</p>
+      <div class="controls"><label>Ballots</label><span id="nc-scope"></span></div>
+      <div class="panel tbl-wrap" id="nc-hist"></div>
+    </section>
+    <section class="block">
+      <h2>The race: cumulative early votes per 100k registrants</h2>
+      <p class="lede">Civilian mail plus in-person early votes, Democrats vs. Republicans, by turnout-propensity group. 2024 mail went out late (9/24/24), which is why its line starts later. Hover for values.</p>
+      <div class="controls"><label>Voters</label><span id="nc-grp"></span><label>Scale</label><span id="nc-scale"></span></div>
+      <div class="panel"><div class="chart" id="nc-chart"></div><div id="nc-legend"></div></div>
+    </section>
+    <section class="block">
+      <h2>Mail returns by turnout-propensity quartile</h2>
+      <p class="lede">Civilian mail returns per 100k registrants. Q1 is the least likely to vote, Q4 the most. 2024 is cut at the same days after its bulk mailing; 2022 and 2026 at the same days out.</p>
+      <div class="grid2"><div class="panel tbl-wrap" id="nc-q"></div><div class="panel tbl-wrap" id="nc-share"></div></div>
+    </section>
+    <section class="block notes"><h2>Notes</h2><ul>
+      <li>"Civilian" excludes ballots delivered by e-mail, which are mostly military and overseas voters. They skip midterms at high rates, so they distort the history comparison.</li>
+      <li>2022 is an imperfect baseline. Its low-propensity mail voters were partly a pandemic carryover, and NC added photo ID for mail ballots in 2024.</li>
+      <li>In-person early voting starts about 19 days out. After that, in-person ballots dominate the race chart.</li>
+      <li>2026 denominators come from the 9/27/2026 registration file and the propensity model's scored file.</li></ul></section>`;
+
+  let scope = store.get("nc-scope", "civilian");
+  const drawHist = () => {
+    const order = ["dem", "rep", "una", "total"], gname = { "1.": "Voted 2022 midterm", "2.": "Presidential-only", "3.": "New since 2020 pres.", "4.": "Lapsed (none of 3)" };
+    const rs = D.comparison.filter(r => r.scope === scope).sort((a, b) => order.indexOf(a.party) - order.indexOf(b.party) || String(a.grp).localeCompare(String(b.grp)));
+    let html = `<table><thead><tr><th class="l">Party</th><th class="l">History group</th><th>Ballots 2022</th><th>Ballots 2026</th><th>Per 100k 2022</th><th>Per 100k 2026</th><th>2026 ÷ 2022</th></tr></thead><tbody>`;
+    let last = null;
+    rs.forEach(r => { const first = r.party !== last; last = r.party;
+      html += `<tr class="${first ? "party-start" : ""}"><td class="l">${first ? `<span class="pdot" style="background:var(${PC[r.party]})"></span>${PNAME[r.party]}` : ""}</td><td class="l grp">${gname[r.grp] || r.grp}</td><td>${fmt(r["2022"])}</td><td>${fmt(r["2026"])}</td><td>${fmt(r.per100k_2022, 1)}</td><td>${fmt(r.per100k_2026, 1)}</td><td>${ratioCell(r.ratio)}</td></tr>` });
+    document.getElementById("nc-hist").innerHTML = html + "</tbody></table>";
+  };
+  document.getElementById("nc-scope").appendChild(seg("nc-scope-seg", [["civilian", "Civilian"], ["all", "All, incl. military/overseas"]], scope, v => { scope = v; store.set("nc-scope", v); drawHist() }));
+  drawHist();
+
+  let grp = store.get("nc-grp", "q34"), log = store.get("nc-log", "1") === "1";
+  const drawRace = () => {
+    const rows = D.race[grp].rows, series = [];
+    ["DEM", "REP"].forEach(p => [2022, 2024, 2026].forEach(y => {
+      series.push({ label: `${p === "DEM" ? "Dem" : "Rep"} ${y}`, short: `${p[0]} ${y}`, color: css(PC[p]), dash: DASH[y], opacity: YOP[y], width: y === 2026 ? 2.75 : 2,
+        endLabel: true, points: rows.filter(r => r[0] === y && r[1] === p).map(r => [r[2], r[3]]) }) }));
+    lineChart(document.getElementById("nc-chart"), { series, nowX: D.days_out, log, yLabel: "Early votes per 100k registrants", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+    document.getElementById("nc-legend").innerHTML = legend(series.map(s => ({ label: s.label, color: s.color, dash: s.dash, opacity: s.opacity })));
+  };
+  document.getElementById("nc-grp").appendChild(seg("nc-grp-seg", [["q34", "High propensity (Q3+Q4)"], ["q12", "Low propensity (Q1+Q2)"]], grp, v => { grp = v; store.set("nc-grp", v); drawRace() }));
+  document.getElementById("nc-scale").appendChild(seg("nc-scale-seg", [["1", "Log"], ["0", "Linear"]], log ? "1" : "0", v => { log = v === "1"; store.set("nc-log", v); drawRace() }));
+  drawRace();
+
+  // quartile tables
+  const q = D.quartile, get = (yr, cut, qq, p) => q.find(r => r.yr === yr && r.cut === cut && r.q === qq && r.party === p);
+  let html = `<table><thead><tr><th class="l">Party</th><th class="l">Quartile</th><th>2022</th><th>2024*</th><th>2026</th><th>2026 ÷ 2024*</th></tr></thead><tbody>`;
+  ["DEM", "REP", "UNA"].forEach(p => ["Q1", "Q2", "Q3", "Q4"].forEach((qq, i) => {
+    const a = get(2022, "days_out", qq, p), b = get(2024, "since_mail", qq, p), c = get(2026, "days_out", qq, p);
+    html += `<tr class="${i ? "" : "party-start"}"><td class="l">${i ? "" : `<span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}`}</td><td class="l grp">${qq}</td><td>${fmt(a?.civ_per100k, 1)}</td><td>${fmt(b?.civ_per100k, 1)}</td><td>${fmt(c?.civ_per100k, 1)}</td><td>${ratioCell(c && b ? c.civ_per100k / b.civ_per100k : null)}</td></tr>` }));
+  document.getElementById("nc-q").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">*2024 at the same days after its bulk mailing.</p>`;
+  html = `<table><thead><tr><th class="l">Quartile</th><th>Dem share of D+R, 2022</th><th>2024*</th><th>2026</th><th>Shift vs. 2024</th></tr></thead><tbody>`;
+  ["Q1", "Q2", "Q3", "Q4"].forEach(qq => {
+    const sh = (yr, cut) => { const d = get(yr, cut, qq, "DEM"), r = get(yr, cut, qq, "REP"); return d && r ? 100 * d.n_civ / (d.n_civ + r.n_civ) : null };
+    const a = sh(2022, "days_out"), b = sh(2024, "since_mail"), c = sh(2026, "days_out"), s = c - b;
+    html += `<tr><td class="l grp">${qq}</td><td>${fmt(a, 1)}%</td><td>${fmt(b, 1)}%</td><td><b>${fmt(c, 1)}%</b></td><td class="${s >= 0 ? "up" : "down"}">${s >= 0 ? "+" : ""}${fmt(s, 1)} pts</td></tr>` });
+  document.getElementById("nc-share").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Democrats' share of civilian mail returns from Democrats and Republicans, within each quartile.</p>`;
+}
+
+// ================= MAINE =================
+function renderME() {
+  const D = DATA.me, root = document.getElementById("me");
+  const YRS = [2020, 2022, 2024, 2026];
+  root.innerHTML = `
+    <div class="asof"><span class="pill">2026 file as of ${fmtDate(D.asof)}</span><span class="pill">${D.days_out} days out</span><span class="pill">Source: <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">Maine SOS statewide absentee voter file</a></span></div>
+    <section class="block">
+      <h2>Absentee ballots per 100k registrants, same days out</h2>
+      <p class="lede">Accepted absentee ballots (mail, drop box, and in-person absentee at the clerk's office) per 100k active and inactive registrants in each party and congressional district.</p>
+      <div class="controls"><label>District</label><span id="me-cd-t"></span></div>
+      <div class="panel tbl-wrap" id="me-sdo"></div>
+    </section>
+    <section class="block">
+      <h2>The race: cumulative absentee ballots per 100k registrants</h2>
+      <p class="lede">In-person absentee voting opens about 30 days out, which produces the jump. 2020 was a pandemic year with record absentee voting. Hover for values (ballot counts in parentheses).</p>
+      <div class="controls"><label>District</label><span id="me-cd"></span><label>Method</label><span id="me-how"></span><label>Scale</label><span id="me-scale"></span><span id="me-parties" style="display:inline-flex;gap:6px"></span></div>
+      <div class="panel"><div class="chart" id="me-chart"></div><div id="me-legend"></div></div>
+    </section>
+    <section class="block">
+      <h2>Who is voting: prior absentee history</h2>
+      <p class="lede">Share of each party's returners at the same days out who cast an accepted absentee ballot in the prior midterm, only in a prior presidential, or in neither. Maine's public file has no full vote history, so "neither" includes everyone who voted at the polls, not only new voters.</p>
+      <div class="panel tbl-wrap" id="me-hist"></div>
+    </section>
+    <section class="block notes"><h2>Notes</h2><ul>
+      <li>Registrant denominators: ${Object.entries(D.reg_asof).map(([y, d]) => `${y} as of ${d}`).join("; ")}. Maine's 2026 list maintenance cut registrants to about 1.03M from 1.22M in 2024, which raises 2026 rates relative to 2024. Compare ballot counts too.</li>
+      <li>The 2026 file reflects what town clerks had entered when it was run. The latest day can be partial.</li>
+      <li>Full voter history is restricted to campaigns and NVRA purposes under 21-A M.R.S. § 196-A, so this view has no propensity model.</li>
+      <li>Sources (Maine Secretary of State, public): <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">2026 statewide absentee voter file</a> (updated weekdays); <a href="https://www.maine.gov/sos/elections-voting/voter-data/previous-absentee-data" target="_blank" rel="noopener">final absentee files, 2014 to 2024</a>; registered and enrolled voter counts from the <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">voter data page</a> (previous enrollment data); <a href="https://www.maine.gov/sos/elections-voting/absenteelayout" target="_blank" rel="noopener">file layout and codes</a>.</li></ul></section>`;
+
+  let cdT = store.get("me-cdt", "ALL");
+  const drawSDO = () => {
+    const rows = D.same_days_out.filter(r => r.cd === cdT);
+    const g = (p, y) => rows.find(r => r.party === p && r.yr === y);
+    let html = `<table><thead><tr><th class="l">Party</th>${YRS.map(y => `<th>Per 100k ${y}</th>`).join("")}<th>Ballots 2026</th><th>vs. 2022</th><th>vs. 2024</th><th>vs. 2020</th></tr></thead><tbody>`;
+    ["ALL", "D", "R", "U"].forEach(p => { const c = g(p, 2026);
+      html += `<tr><td class="l"><span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}</td>${YRS.map(y => `<td>${fmt(g(p, y)?.per100k, 0)}</td>`).join("")}<td>${fmt(c?.n)}</td>${[2022, 2024, 2020].map(y => `<td>${ratioCell(c && g(p, y) ? c.per100k / g(p, y).per100k : null)}</td>`).join("")}</tr>` });
+    document.getElementById("me-sdo").innerHTML = html + "</tbody></table>";
+  };
+  const cdOpts = [["ALL", "Statewide"], ["1", "CD 1"], ["2", "CD 2"]];
+  document.getElementById("me-cd-t").appendChild(seg("me-cdt-seg", cdOpts, cdT, v => { cdT = v; store.set("me-cdt", v); drawSDO() }));
+  drawSDO();
+
+  let cd = store.get("me-cd", "ALL"), how = store.get("me-how", "ALL"), log = store.get("me-log", "1") === "1";
+  const on = { D: true, R: true, U: store.get("me-u", "0") === "1" };
+  const drawRace = () => {
+    const series = [];
+    ["D", "R", "U"].filter(p => on[p]).forEach(p => YRS.forEach(y => {
+      const pts = (D.daily[`${cd}|${how}|${p}|${y}`] || []);
+      series.push({ label: `${{ D: "Dem", R: "Rep", U: "Unenr." }[p]} ${y}`, short: `${p} ${y}`, color: css(PC[p]), dash: DASH[y], opacity: YOP[y], width: y === 2026 ? 2.75 : 2,
+        endLabel: y === 2026 || y === 2022, points: pts }) }));
+    lineChart(document.getElementById("me-chart"), { series, nowX: D.days_out, log, yLabel: "Absentee ballots per 100k registrants", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+    document.getElementById("me-legend").innerHTML = legend(series.map(s => ({ label: s.label, color: s.color, dash: s.dash, opacity: s.opacity })));
+  };
+  document.getElementById("me-cd").appendChild(seg("me-cd-seg", cdOpts, cd, v => { cd = v; store.set("me-cd", v); drawRace() }));
+  document.getElementById("me-how").appendChild(seg("me-how-seg", [["ALL", "All"], ["in_person", "In person"], ["mail_dropbox", "Mail/drop box"]], how, v => { how = v; store.set("me-how", v); drawRace() }));
+  document.getElementById("me-scale").appendChild(seg("me-scale-seg", [["1", "Log"], ["0", "Linear"]], log ? "1" : "0", v => { log = v === "1"; store.set("me-log", v); drawRace() }));
+  const pw = document.getElementById("me-parties");
+  ["D", "R", "U"].forEach(p => { const b = el("button", { type: "button", class: "chip-toggle", "aria-pressed": String(on[p]), id: `me-p-${p}` }, `<span class="pdot" style="background:var(${PC[p]});margin:0"></span>${PNAME[p]}`);
+    b.onclick = () => { on[p] = !on[p]; b.setAttribute("aria-pressed", String(on[p])); if (p === "U") store.set("me-u", on.U ? "1" : "0"); drawRace() }; pw.appendChild(b) });
+  drawRace();
+
+  const H = D.history, gl = { "1.": "Absentee in prior midterm", "2.": "Absentee in prior pres. only", "3.": "Neither" };
+  let html = `<table><thead><tr><th class="l">Party</th><th class="l">Prior absentee</th>${YRS.map(y => `<th>${y}</th>`).join("")}<th>Ballots 2026</th></tr></thead><tbody>`;
+  ["D", "R", "U", "ALL"].forEach(p => ["1.", "2.", "3."].forEach((g, i) => {
+    const c = y => H.find(r => r.party === p && r.grp === g && r.yr === y);
+    html += `<tr class="${i ? "" : "party-start"}"><td class="l">${i ? "" : `<span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}`}</td><td class="l grp">${gl[g]}</td>${YRS.map(y => `<td>${fmt(c(y)?.pct_of_party, 1)}%</td>`).join("")}<td>${fmt(c(2026)?.n)}</td></tr>` }));
+  document.getElementById("me-hist").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Prior elections: 2026 uses 2022 (midterm) and 2020/2024; 2024 uses 2022 and 2018/2020; 2022 uses 2018 and 2016/2020; 2020 uses 2018 and 2014/2016.</p>`;
+}
+
+// ---------- tabs ----------
+const drawn = {};
+function show(state) {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.state === state)));
+  ["nc", "me"].forEach(s => document.getElementById(s).hidden = s !== state);
+  if (!drawn[state]) { (state === "nc" ? renderNC : renderME)(); drawn[state] = true }
+  store.set("tab", state);
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.state));
+show(location.hash === "#me" ? "me" : location.hash === "#nc" ? "nc" : store.get("tab", "nc"));
+// Redraw charts on theme change so SVG colors follow the tokens.
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { for (const k in drawn) delete drawn[k]; show(store.get("tab", "nc")) });
+new MutationObserver(() => { for (const k in drawn) delete drawn[k]; show(store.get("tab", "nc")) }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
