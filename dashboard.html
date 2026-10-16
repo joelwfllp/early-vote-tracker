@@ -266,15 +266,15 @@ function renderME() {
   root.innerHTML = `
     <div class="asof"><span class="pill">2026 file as of ${fmtDate(D.asof)}</span><span class="pill">${D.days_out} days out</span><span class="pill">Source: <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">Maine SOS statewide absentee voter file</a></span></div>
     <section class="block">
-      <h2>Absentee ballots per 100k registrants, same days out</h2>
+      <h2 id="me-sdo-h">Absentee ballots per 100k registrants, same days out</h2>
       <p class="lede">Accepted absentee ballots (mail, drop box, and in-person absentee at the clerk's office) per 100k active and inactive registrants in each party and congressional district.</p>
-      <div class="controls"><label>District</label><span id="me-cd-t"></span></div>
+      <div class="controls"><label>District</label><span id="me-cd-t"></span><label>Measure</label><span id="me-unit-t"></span></div>
       <div class="panel tbl-wrap" id="me-sdo"></div>
     </section>
     <section class="block">
-      <h2>The race: cumulative absentee ballots per 100k registrants</h2>
+      <h2 id="me-race-h">The race: cumulative absentee ballots per 100k registrants</h2>
       <p class="lede">In-person absentee voting opens about 30 days out, which produces the jump. 2020 was a pandemic year with record absentee voting. Hover for values (ballot counts in parentheses).</p>
-      <div class="controls"><label>District</label><span id="me-cd"></span><label>Method</label><span id="me-how"></span><label>Scale</label><span id="me-scale"></span><span id="me-parties" style="display:inline-flex;gap:6px"></span></div>
+      <div class="controls"><label>District</label><span id="me-cd"></span><label>Method</label><span id="me-how"></span><label>Measure</label><span id="me-unit"></span><label>Scale</label><span id="me-scale"></span><span id="me-parties" style="display:inline-flex;gap:6px"></span></div>
       <div class="panel"><div class="chart" id="me-chart"></div><div id="me-legend"></div></div>
     </section>
     <section class="block">
@@ -283,37 +283,43 @@ function renderME() {
       <div class="panel tbl-wrap" id="me-hist"></div>
     </section>
     <section class="block notes"><h2>Notes</h2><ul>
-      <li>Registrant denominators: ${Object.entries(D.reg_asof).map(([y, d]) => `${y} as of ${d}`).join("; ")}. Maine's 2026 list maintenance cut registrants to about 1.03M from 1.22M in 2024, which raises 2026 rates relative to 2024. Compare ballot counts too.</li>
+      <li>Registrant denominators: ${Object.entries(D.reg_asof).map(([y, d]) => `${y} as of ${d}`).join("; ")}. Maine's 2026 list maintenance cut registrants to about 1.03M from 1.22M in 2024, which raises 2026 rates relative to 2024. Use the Ballots measure to compare raw counts, which the purge does not affect.</li>
       <li>The 2026 file reflects what town clerks had entered when it was run. The latest day can be partial.</li>
       <li>Full voter history is restricted to campaigns and NVRA purposes under 21-A M.R.S. § 196-A, so this view has no propensity model.</li>
       <li>Sources (Maine Secretary of State, public): <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">2026 statewide absentee voter file</a> (updated weekdays); <a href="https://www.maine.gov/sos/elections-voting/voter-data/previous-absentee-data" target="_blank" rel="noopener">final absentee files, 2014 to 2024</a>; registered and enrolled voter counts from the <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">voter data page</a> (previous enrollment data); <a href="https://www.maine.gov/sos/elections-voting/absenteelayout" target="_blank" rel="noopener">file layout and codes</a>.</li></ul></section>`;
 
-  let cdT = store.get("me-cdt", "ALL");
+  // Measure: "rate" = per 100k registrants; "n" = raw ballot counts (unaffected by the 2026 list purge).
+  const unitOpts = [["rate", "Per 100k"], ["n", "Ballots"]];
+  let cdT = store.get("me-cdt", "ALL"), unitT = store.get("me-unit-t", "rate");
   const drawSDO = () => {
-    const rows = D.same_days_out.filter(r => r.cd === cdT);
+    const rows = D.same_days_out.filter(r => r.cd === cdT), raw = unitT === "n", k = raw ? "n" : "per100k";
     const g = (p, y) => rows.find(r => r.party === p && r.yr === y);
-    let html = `<table><thead><tr><th class="l">Party</th>${YRS.map(y => `<th>Per 100k ${y}</th>`).join("")}<th>Ballots 2026</th><th>vs. 2022</th><th>vs. 2024</th><th>vs. 2020</th></tr></thead><tbody>`;
+    document.getElementById("me-sdo-h").textContent = raw ? "Absentee ballots, same days out" : "Absentee ballots per 100k registrants, same days out";
+    let html = `<table><thead><tr><th class="l">Party</th>${YRS.map(y => `<th>${raw ? "Ballots" : "Per 100k"} ${y}</th>`).join("")}${raw ? "" : "<th>Ballots 2026</th>"}<th>vs. 2022</th><th>vs. 2024</th><th>vs. 2020</th></tr></thead><tbody>`;
     ["ALL", "D", "R", "U"].forEach(p => { const c = g(p, 2026);
-      html += `<tr><td class="l"><span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}</td>${YRS.map(y => `<td>${fmt(g(p, y)?.per100k, 0)}</td>`).join("")}<td>${fmt(c?.n)}</td>${[2022, 2024, 2020].map(y => `<td>${ratioCell(c && g(p, y) ? c.per100k / g(p, y).per100k : null)}</td>`).join("")}</tr>` });
+      html += `<tr><td class="l"><span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}</td>${YRS.map(y => `<td>${fmt(g(p, y)?.[k], 0)}</td>`).join("")}${raw ? "" : `<td>${fmt(c?.n)}</td>`}${[2022, 2024, 2020].map(y => `<td>${ratioCell(c && g(p, y) ? c[k] / g(p, y)[k] : null)}</td>`).join("")}</tr>` });
     document.getElementById("me-sdo").innerHTML = html + "</tbody></table>";
   };
   const cdOpts = [["ALL", "Statewide"], ["1", "CD 1"], ["2", "CD 2"]];
   document.getElementById("me-cd-t").appendChild(seg("me-cdt-seg", cdOpts, cdT, v => { cdT = v; store.set("me-cdt", v); drawSDO() }));
+  document.getElementById("me-unit-t").appendChild(seg("me-unit-t-seg", unitOpts, unitT, v => { unitT = v; store.set("me-unit-t", v); drawSDO() }));
   drawSDO();
 
-  let cd = store.get("me-cd", "ALL"), how = store.get("me-how", "ALL"), log = store.get("me-log", "1") === "1";
+  let cd = store.get("me-cd", "ALL"), how = store.get("me-how", "ALL"), log = store.get("me-log", "1") === "1", unit = store.get("me-unit", "rate");
   const on = { D: true, R: true, U: store.get("me-u", "0") === "1" };
   const drawRace = () => {
     const series = [];
     ["D", "R", "U"].filter(p => on[p]).forEach(p => YRS.forEach(y => {
-      const pts = (D.daily[`${cd}|${how}|${p}|${y}`] || []);
+      const pts = (D.daily[`${cd}|${how}|${p}|${y}`] || []).map(q => unit === "n" ? [q[0], q[2]] : q);
       series.push({ label: `${{ D: "Dem", R: "Rep", U: "Unenr." }[p]} ${y}`, short: `${p} ${y}`, color: css(PC[p]), dash: DASH[y], opacity: YOP[y], width: y === 2026 ? 2.75 : 2,
         endLabel: y === 2026 || y === 2022, points: pts }) }));
-    lineChart(document.getElementById("me-chart"), { series, nowX: D.days_out, log, yLabel: "Absentee ballots per 100k registrants", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+    lineChart(document.getElementById("me-chart"), { series, nowX: D.days_out, log, yLabel: unit === "n" ? "Absentee ballots (cumulative)" : "Absentee ballots per 100k registrants", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+    document.getElementById("me-race-h").textContent = unit === "n" ? "The race: cumulative absentee ballots" : "The race: cumulative absentee ballots per 100k registrants";
     document.getElementById("me-legend").innerHTML = legend(series.map(s => ({ label: s.label, color: s.color, dash: s.dash, opacity: s.opacity })));
   };
   document.getElementById("me-cd").appendChild(seg("me-cd-seg", cdOpts, cd, v => { cd = v; store.set("me-cd", v); drawRace() }));
   document.getElementById("me-how").appendChild(seg("me-how-seg", [["ALL", "All"], ["in_person", "In person"], ["mail_dropbox", "Mail/drop box"]], how, v => { how = v; store.set("me-how", v); drawRace() }));
+  document.getElementById("me-unit").appendChild(seg("me-unit-seg", unitOpts, unit, v => { unit = v; store.set("me-unit", v); drawRace() }));
   document.getElementById("me-scale").appendChild(seg("me-scale-seg", [["1", "Log"], ["0", "Linear"]], log ? "1" : "0", v => { log = v === "1"; store.set("me-log", v); drawRace() }));
   const pw = document.getElementById("me-parties");
   ["D", "R", "U"].forEach(p => { const b = el("button", { type: "button", class: "chip-toggle", "aria-pressed": String(on[p]), id: `me-p-${p}` }, `<span class="pdot" style="background:var(${PC[p]});margin:0"></span>${PNAME[p]}`);
