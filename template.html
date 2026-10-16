@@ -196,8 +196,8 @@ function renderNC() {
   root.innerHTML = `
     <div class="asof"><span class="pill">2026 data through ${fmtDate(D.asof)}</span><span class="pill">${D.days_out} days out</span><span class="pill">Source: NCSBE absentee, voter, and history files</span></div>
     <section class="block">
-      <h2>Mail returns per 100k registrants, by party and 2022 vote history</h2>
-      <p class="lede">Each row is the return rate among registrants in that party and history group. The ratio compares 2026 with 2022 at the same days out. Party is party at ballot request; history is 2020/2022/2024 general turnout (2016/2018/2020 for the 2022 baseline).</p>
+      <h2>Early votes per 100k registrants, by party and 2022 vote history</h2>
+      <p class="lede">Each row counts accepted mail and in-person early ballots per 100k registrants in that party and history group. The ratio compares 2026 with 2022 at the same days out. Party is party at ballot request; history is 2020/2022/2024 general turnout (2016/2018/2020 for the 2022 baseline).</p>
       <div class="controls"><label>Ballots</label><span id="nc-scope"></span></div>
       <div class="panel tbl-wrap" id="nc-hist"></div>
     </section>
@@ -208,14 +208,14 @@ function renderNC() {
       <div class="panel"><div class="chart" id="nc-chart"></div><div id="nc-legend"></div></div>
     </section>
     <section class="block">
-      <h2>Mail returns by turnout-propensity quartile</h2>
-      <p class="lede">Civilian mail returns per 100k registrants. Q1 is the least likely to vote, Q4 the most. 2024 is cut at the same days after its bulk mailing; 2022 and 2026 at the same days out.</p>
+      <h2>Early votes by turnout-propensity quartile</h2>
+      <p class="lede">Civilian mail plus in-person early votes per 100k registrants. Q1 is the least likely to vote, Q4 the most. All three cycles are cut at the same days out.</p>
       <div class="grid2"><div class="panel tbl-wrap" id="nc-q"></div><div class="panel tbl-wrap" id="nc-share"></div></div>
     </section>
     <section class="block notes"><h2>Notes</h2><ul>
       <li>"Civilian" excludes ballots delivered by e-mail, which are mostly military and overseas voters. They skip midterms at high rates, so they distort the history comparison.</li>
       <li>2022 is an imperfect baseline. Its low-propensity mail voters were partly a pandemic carryover, and NC added photo ID for mail ballots in 2024.</li>
-      <li>In-person early voting starts about 19 days out. After that, in-person ballots dominate the race chart.</li>
+      <li>In-person early voting opened 19 days out in all three cycles (10/20/22, 10/17/24, 10/15/26), so every table is cut at the same days out. In-person ballots now dominate the totals.</li>
       <li>2026 denominators come from the 9/27/2026 registration file and the propensity model's scored file.</li></ul></section>`;
 
   let scope = store.get("nc-scope", "civilian");
@@ -246,17 +246,17 @@ function renderNC() {
 
   // quartile tables
   const q = D.quartile, get = (yr, cut, qq, p) => q.find(r => r.yr === yr && r.cut === cut && r.q === qq && r.party === p);
-  let html = `<table><thead><tr><th class="l">Party</th><th class="l">Quartile</th><th>2022</th><th>2024*</th><th>2026</th><th>2026 ÷ 2024*</th></tr></thead><tbody>`;
+  let html = `<table><thead><tr><th class="l">Party</th><th class="l">Quartile</th><th>2022</th><th>2024</th><th>2026</th><th>2026 ÷ 2024</th></tr></thead><tbody>`;
   ["DEM", "REP", "UNA"].forEach(p => ["Q1", "Q2", "Q3", "Q4"].forEach((qq, i) => {
-    const a = get(2022, "days_out", qq, p), b = get(2024, "since_mail", qq, p), c = get(2026, "days_out", qq, p);
+    const a = get(2022, "days_out", qq, p), b = get(2024, "days_out", qq, p), c = get(2026, "days_out", qq, p);
     html += `<tr class="${i ? "" : "party-start"}"><td class="l">${i ? "" : `<span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}`}</td><td class="l grp">${qq}</td><td>${fmt(a?.civ_per100k, 1)}</td><td>${fmt(b?.civ_per100k, 1)}</td><td>${fmt(c?.civ_per100k, 1)}</td><td>${ratioCell(c && b ? c.civ_per100k / b.civ_per100k : null)}</td></tr>` }));
-  document.getElementById("nc-q").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">*2024 at the same days after its bulk mailing.</p>`;
-  html = `<table><thead><tr><th class="l">Quartile</th><th>Dem share of D+R, 2022</th><th>2024*</th><th>2026</th><th>Shift vs. 2024</th></tr></thead><tbody>`;
+  document.getElementById("nc-q").innerHTML = html + `</tbody></table>`;
+  html = `<table><thead><tr><th class="l">Quartile</th><th>Dem share of D+R, 2022</th><th>2024</th><th>2026</th><th>Shift vs. 2024</th></tr></thead><tbody>`;
   ["Q1", "Q2", "Q3", "Q4"].forEach(qq => {
     const sh = (yr, cut) => { const d = get(yr, cut, qq, "DEM"), r = get(yr, cut, qq, "REP"); return d && r ? 100 * d.n_civ / (d.n_civ + r.n_civ) : null };
-    const a = sh(2022, "days_out"), b = sh(2024, "since_mail"), c = sh(2026, "days_out"), s = c - b;
+    const a = sh(2022, "days_out"), b = sh(2024, "days_out"), c = sh(2026, "days_out"), s = c - b;
     html += `<tr><td class="l grp">${qq}</td><td>${fmt(a, 1)}%</td><td>${fmt(b, 1)}%</td><td><b>${fmt(c, 1)}%</b></td><td class="${s >= 0 ? "up" : "down"}">${s >= 0 ? "+" : ""}${fmt(s, 1)} pts</td></tr>` });
-  document.getElementById("nc-share").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Democrats' share of civilian mail returns from Democrats and Republicans, within each quartile.</p>`;
+  document.getElementById("nc-share").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Democrats' share of civilian early votes from Democrats and Republicans, within each quartile.</p>`;
 }
 
 // ================= MAINE =================
