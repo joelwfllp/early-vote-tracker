@@ -212,11 +212,19 @@ function renderNC() {
       <p class="lede">Civilian mail plus in-person early votes per 100k registrants. Q1 is the least likely to vote, Q4 the most. All three cycles are cut at the same days out.</p>
       <div class="grid2"><div class="panel tbl-wrap" id="nc-q"></div><div class="panel tbl-wrap" id="nc-share"></div></div>
     </section>
+    <section class="block">
+      <h2>Unaffiliated early voters, by the primary ballot they took</h2>
+      <p class="lede">NC unaffiliated voters can choose any party's primary ballot. The voter history file records which one. This splits unaffiliated registrants by the ballot they took in the current cycle's primary (3/3/2026; 5/17/2022 for the baseline) and tracks how many have cast a civilian early ballot.</p>
+      <div class="panel tbl-wrap" id="nc-una-rate"></div><div class="panel tbl-wrap" id="nc-una-share" style="margin-top:16px"></div>
+      <div class="controls"><label>Scale</label><span id="nc-una-scale"></span></div>
+      <div class="panel"><div class="chart" id="nc-una-chart"></div><div id="nc-una-legend"></div></div>
+    </section>
     <section class="block notes"><h2>Notes</h2><ul>
       <li>"Civilian" excludes ballots delivered by e-mail, which are mostly military and overseas voters. They skip midterms at high rates, so they distort the history comparison.</li>
       <li>2022 is an imperfect baseline. Its low-propensity mail voters were partly a pandemic carryover, and NC added photo ID for mail ballots in 2024.</li>
       <li>In-person early voting opened 19 days out in all three cycles (10/20/22, 10/17/24, 10/15/26), so every table is cut at the same days out. In-person ballots now dominate the totals.</li>
-      <li>2026 denominators come from the 9/27/2026 registration file and the propensity model's scored file.</li></ul></section>`;
+      <li>2026 denominators come from the 9/27/2026 registration file and the propensity model's scored file.</li>
+      <li>Primary-ballot tables: unaffiliated status is from the registration snapshot (denominators) and from party at ballot request (early votes), so a voter who changed party between the two can fall on either side. "No partisan primary ballot" includes unaffiliated voters who skipped the primary and the few who took a nonpartisan ballot. In 2022 unaffiliated voters were much more likely to take a Republican ballot than in 2026, so the two cycles' DEM-ballot and REP-ballot groups are not the same kinds of voters.</li></ul></section>`;
 
   let scope = store.get("nc-scope", "civilian");
   const drawHist = () => {
@@ -257,6 +265,43 @@ function renderNC() {
     const a = sh(2022, "days_out"), b = sh(2024, "days_out"), c = sh(2026, "days_out"), s = c - b;
     html += `<tr><td class="l grp">${qq}</td><td>${fmt(a, 1)}%</td><td>${fmt(b, 1)}%</td><td><b>${fmt(c, 1)}%</b></td><td class="${s >= 0 ? "up" : "down"}">${s >= 0 ? "+" : ""}${fmt(s, 1)} pts</td></tr>` });
   document.getElementById("nc-share").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Democrats' share of civilian early votes from Democrats and Republicans, within each quartile.</p>`;
+  renderNCUna(D);
+}
+
+// ---------- NC: unaffiliated voters by primary ballot ----------
+function renderNCUna(D) {
+  const U = D.una.daily, BN = { DEM: "Took DEM ballot", REP: "Took REP ballot", NONE: "No partisan primary ballot" };
+  const BC = { DEM: "--dem", REP: "--rep", NONE: "--ink-3" };
+  const last = (yr, b) => U.filter(r => r.yr === yr && r.ballot === b).reduce((a, r) => !a || r.days_out < a.days_out ? r : a, null);
+  let html = `<table><thead><tr><th class="l">Unaffiliated who…</th><th>Registrants 2026</th><th>Early votes 2026</th><th>Per 100k 2022</th><th>Per 100k 2026</th><th>2026 ÷ 2022</th></tr></thead><tbody>`;
+  ["DEM", "REP", "NONE"].forEach(b => { const a = last(2022, b), c = last(2026, b);
+    html += `<tr><td class="l"><span class="pdot" style="background:var(${BC[b]})"></span>${BN[b]}</td><td>${fmt(c?.reg)}</td><td>${fmt(c?.cum)}</td><td>${fmt(a?.per100k, 0)}</td><td><b>${fmt(c?.per100k, 0)}</b></td><td>${ratioCell(a && c ? c.per100k / a.per100k : null)}</td></tr>` });
+  document.getElementById("nc-una-rate").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Civilian early votes per 100k unaffiliated registrants in each group, same days out.</p>`;
+  const sh = (yr, f) => { const v = Object.fromEntries(["DEM", "REP", "NONE"].map(b => [b, last(yr, b)?.[f] || 0])); return v };
+  const pct = (v, k, keys) => 100 * v[k] / keys.reduce((s, x) => s + v[x], 0);
+  const e22 = sh(2022, "cum"), e26 = sh(2026, "cum"), r22 = sh(2022, "reg"), r26 = sh(2026, "reg");
+  const dr = ["DEM", "REP"], all = ["DEM", "REP", "NONE"];
+  const row = (label, a, c, bold) => `<tr><td class="l grp">${label}</td><td>${fmt(a, 1)}%</td><td>${bold ? "<b>" : ""}${fmt(c, 1)}%${bold ? "</b>" : ""}</td></tr>`;
+  html = `<table><thead><tr><th class="l">Unaffiliated early voters</th><th>2022</th><th>2026</th></tr></thead><tbody>`
+    + all.map(b => row(BN[b], pct(e22, b, all), pct(e26, b, all))).join("")
+    + `<tr class="party-start"><td class="l" colspan="3" style="text-align:left;font-weight:600">DEM share of those who took a DEM or REP ballot</td></tr>`
+    + row("Among unaffiliated early voters", pct(e22, "DEM", dr), pct(e26, "DEM", dr), true)
+    + row("Among all unaffiliated registrants", pct(r22, "DEM", dr), pct(r26, "DEM", dr));
+  const g22 = pct(e22, "DEM", dr) - pct(r22, "DEM", dr), g26 = pct(e26, "DEM", dr) - pct(r26, "DEM", dr);
+  html += `<tr><td class="l grp">Early voters minus registrants</td>${[g22, g26].map(g => `<td class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "+" : ""}${fmt(g, 1)} pts</td>`).join("")}</tr>`;
+  document.getElementById("nc-una-share").innerHTML = html + `</tbody></table>`;
+
+  let log = store.get("nc-una-log", "0") === "1";
+  const draw = () => {
+    const series = [];
+    ["DEM", "REP"].forEach(b => [2022, 2026].forEach(y => series.push({ label: `${b === "DEM" ? "DEM" : "REP"} ballot ${y}`, short: `${b[0]} ${y}`,
+      color: css(BC[b]), dash: DASH[y], opacity: YOP[y], width: y === 2026 ? 2.75 : 2, endLabel: true,
+      points: U.filter(r => r.yr === y && r.ballot === b).map(r => [r.days_out, r.per100k, r.cum]) })));
+    lineChart(document.getElementById("nc-una-chart"), { series, nowX: D.days_out, log, height: 320, yLabel: "Early votes per 100k in group", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+    document.getElementById("nc-una-legend").innerHTML = legend(series.map(s => ({ label: `Unaffiliated, took ${s.label}`, color: s.color, dash: s.dash, opacity: s.opacity })));
+  };
+  document.getElementById("nc-una-scale").appendChild(seg("nc-una-scale-seg", [["0", "Linear"], ["1", "Log"]], log ? "1" : "0", v => { log = v === "1"; store.set("nc-una-log", v); draw() }));
+  draw();
 }
 
 // ================= MAINE =================
@@ -281,6 +326,12 @@ function renderME() {
       <h2>Who is voting: prior absentee history</h2>
       <p class="lede">Share of each party's returners at the same days out who cast an accepted absentee ballot in the prior midterm, only in a prior presidential, or in neither. Maine's public file has no full vote history, so "neither" includes everyone who voted at the polls, not only new voters.</p>
       <div class="panel tbl-wrap" id="me-hist"></div>
+    </section>
+    <section class="block">
+      <h2>Unenrolled voters, by the primary ballot they took</h2>
+      <p class="lede">Since 2024, Maine's unenrolled voters can vote in one party's primary. The public absentee file records which party's ballot each absentee voter was issued, so this covers only unenrolled voters who voted absentee in the 6/9/2026 primary. Unenrolled voters who voted at the polls in the primary are not visible. No prior-cycle baseline is possible because the 2024 primary files do not record the ballot issued.</p>
+      <div class="panel tbl-wrap" id="me-una-rate"></div><div class="panel tbl-wrap" id="me-una-comp" style="margin-top:16px"></div>
+      <div class="panel" style="margin-top:16px"><div class="chart" id="me-una-chart"></div><div id="me-una-legend"></div></div>
     </section>
     <section class="block notes"><h2>Notes</h2><ul>
       <li>Registrant denominators: ${Object.entries(D.reg_asof).map(([y, d]) => `${y} as of ${d}`).join("; ")}. Maine's 2026 list maintenance cut registrants to about 1.03M from 1.22M in 2024, which raises 2026 rates relative to 2024. Use the Ballots measure to compare raw counts, which the purge does not affect.</li>
@@ -332,6 +383,26 @@ function renderME() {
     const c = y => H.find(r => r.party === p && r.grp === g && r.yr === y);
     html += `<tr class="${i ? "" : "party-start"}"><td class="l">${i ? "" : `<span class="pdot" style="background:var(${PC[p]})"></span>${PNAME[p]}`}</td><td class="l grp">${gl[g]}</td>${YRS.map(y => `<td>${fmt(c(y)?.pct_of_party, 1)}%</td>`).join("")}<td>${fmt(c(2026)?.n)}</td></tr>` }));
   document.getElementById("me-hist").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Prior elections: 2026 uses 2022 (midterm) and 2020/2024; 2024 uses 2022 and 2018/2020; 2022 uses 2018 and 2016/2020; 2020 uses 2018 and 2014/2016.</p>`;
+
+  // Unenrolled voters by 2026 primary absentee ballot
+  const UP = D.una_primary, CDN = { ALL: "Statewide", 1: "CD 1", 2: "CD 2" }, BCm = { D: "--dem", R: "--rep" };
+  html = `<table><thead><tr><th class="l">District</th><th class="l">Primary ballot</th><th>Primary absentee voters</th><th>Returned 2026 absentee</th><th>Share returned</th></tr></thead><tbody>`;
+  ["ALL", "1", "2"].forEach(cd => ["D", "R"].forEach((b, i) => { const r = UP.rate.find(x => String(x.cd) === cd && x.ballot === b);
+    html += `<tr class="${i ? "" : "party-start"}"><td class="l">${i ? "" : CDN[cd]}</td><td class="l"><span class="pdot" style="background:var(${BCm[b]})"></span>${b === "D" ? "Democratic" : "Republican"}</td><td>${fmt(r?.primary_n)}</td><td>${fmt(r?.general_n)}</td><td><b>${fmt(r?.pct, 1)}%</b></td></tr>` }));
+  document.getElementById("me-una-rate").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Voters unenrolled at the 2026 primary who voted absentee in it, and how many have an accepted 2026 general absentee ballot.</p>`;
+  const cn = (cd, b) => UP.comp.find(x => String(x.cd) === cd && x.ballot === b)?.n || 0;
+  html = `<table><thead><tr><th class="l">Unenrolled absentee returners</th>${["ALL", "1", "2"].map(cd => `<th>${CDN[cd]}</th>`).join("")}</tr></thead><tbody>`;
+  [["D", "Took DEM primary ballot"], ["R", "Took REP primary ballot"], ["N", "No primary absentee ballot"]].forEach(([b, l]) => {
+    html += `<tr><td class="l grp">${l}</td>${["ALL", "1", "2"].map(cd => `<td>${fmt(100 * cn(cd, b) / cn(cd, "ALL"), 1)}%</td>`).join("")}</tr>` });
+  html += `<tr class="party-start"><td class="l grp">DEM share of D+R ballot-takers</td>${["ALL", "1", "2"].map(cd => `<td><b>${fmt(100 * cn(cd, "D") / (cn(cd, "D") + cn(cd, "R")), 1)}%</b></td>`).join("")}</tr>`;
+  const pr = b => UP.rate.find(x => x.cd === "ALL" && x.ballot === b)?.primary_n || 0;
+  html += `<tr><td class="l grp">Same, all unenrolled primary absentee voters</td><td>${fmt(100 * pr("D") / (pr("D") + pr("R")), 1)}%</td><td></td><td></td></tr>`;
+  html += `<tr><td class="l grp">Unenrolled absentee ballots, 2026</td>${["ALL", "1", "2"].map(cd => `<td>${fmt(cn(cd, "ALL"))}</td>`).join("")}</tr>`;
+  document.getElementById("me-una-comp").innerHTML = html + `</tbody></table><p class="lede" style="margin:8px 0 0">Voters unenrolled in the 2026 general file, by the ballot they took as primary absentee voters. Most have no primary absentee ballot: they voted at the polls in June or skipped the primary.</p>`;
+  const series = ["D", "R"].map(b => ({ label: `Took ${b === "D" ? "DEM" : "REP"} primary ballot`, short: b === "D" ? "DEM ballot" : "REP ballot", color: css(BCm[b]), width: 2.75, endLabel: true,
+    points: UP.daily.filter(r => r.ballot === b).map(r => [r.days_out, r.pct, r.cum]) }));
+  lineChart(document.getElementById("me-una-chart"), { series, nowX: D.days_out, log: false, height: 300, yLabel: "% of primary absentee voters returned", nowLabel: `2026 through ${fmtDate(D.asof)}` });
+  document.getElementById("me-una-legend").innerHTML = legend(series);
 }
 
 // ---------- tabs ----------

@@ -29,6 +29,10 @@ nc = {
     "comparison": [{k: num(v) for k, v in r.items()} for r in rows(NC / "comparison_2022_vs_2026.csv")],
     "quartile": [{k: num(v) for k, v in r.items()} for r in rows(NC / "quartile_per100k_same_days_out.csv")],
     "race": race["groups"],
+    # Unaffiliated returners by current-cycle primary ballot (civilian).
+    "una": {
+        "daily": [{k: num(v) for k, v in r.items()} for r in rows(NC / "una_primary_daily.csv")],
+    },
 }
 
 me_raw = json.loads((ME / "dashboard_me.json").read_text())
@@ -37,7 +41,8 @@ daily = {}
 for r in me_raw["daily"]:
     daily.setdefault(f'{r["cd"]}|{r["how"]}|{r["party"]}|{r["yr"]}', []).append([r["days_out"], r["per100k"], r["cum"]])
 me = {"asof": me_raw["asof"], "days_out": me_raw["days_out"], "reg_asof": me_raw["reg_asof"],
-      "same_days_out": me_raw["same_days_out"], "history": me_raw["history"], "daily": daily}
+      "same_days_out": me_raw["same_days_out"], "history": me_raw["history"], "daily": daily,
+      "una_primary": me_raw["una_primary"]}
 
 page = (HERE / "template.html").read_text().replace("/*__DATA__*/null", json.dumps({"nc": nc, "me": me}, separators=(",", ":")))
 (HERE / "dashboard.html").write_text(page)
