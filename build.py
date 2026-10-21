@@ -1,6 +1,6 @@
-"""Bake the NC and Maine pipeline outputs into one self-contained dashboard page.
+"""Bake the NC, Maine, and Clark County pipeline outputs into one self-contained dashboard page.
 
-Usage: python3 build.py   (after ~/nc-early-vote/run.py and ~/maine-early-vote/run.py)
+Usage: python3 build.py   (after ~/nc-early-vote/run.py, ~/maine-early-vote/run.py, and ~/clark-early-vote run.py + build.py)
 Writes dashboard.html next to this file; publish it as the Early Vote Tracker artifact.
 """
 import csv, json
@@ -45,6 +45,9 @@ me = {"asof": me_raw["asof"], "days_out": me_raw["days_out"], "reg_asof": me_raw
       "una_primary": me_raw["una_primary"]}
 
 page = (HERE / "template.html").read_text().replace("/*__DATA__*/null", json.dumps({"nc": nc, "me": me}, separators=(",", ":")))
+# Clark County tab: static fragment from ~/clark-early-vote/build.py (run that pipeline first).
+CK = Path.home() / "clark-early-vote" / "out" / "clark_fragment.html"
+page = page.replace("<!--__CLARK__-->", CK.read_text() if CK.exists() else "<p>Clark County data not built yet.</p>")
 (HERE / "dashboard.html").write_text(page)
 # Standalone copy for GitHub Pages (the artifact host adds the document skeleton; Pages does not).
 (HERE / "docs").mkdir(exist_ok=True)

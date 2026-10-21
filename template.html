@@ -77,16 +77,18 @@ tr.party-start td { border-top: 1px solid var(--rule) }
   <header class="top">
     <div>
       <h1>Early Vote Tracker</h1>
-      <p class="sub">Accepted early and absentee ballots per 100k registrants, compared with past cycles at the same days before Election Day.</p>
+      <p class="sub">Accepted early and absentee ballots, compared with past cycles at the same days before Election Day.</p>
     </div>
     <div class="tabs" role="tablist">
       <button role="tab" id="tab-nc" aria-selected="true" data-state="nc">North Carolina</button>
       <button role="tab" id="tab-me" aria-selected="false" data-state="me">Maine</button>
+      <button role="tab" id="tab-ck" aria-selected="false" data-state="ck">Clark County, NV</button>
     </div>
   </header>
 
   <main id="nc" role="tabpanel"></main>
   <main id="me" role="tabpanel" hidden></main>
+  <main id="ck" role="tabpanel" hidden><!--__CLARK__--></main>
 </div>
 
 <script>
@@ -409,12 +411,16 @@ function renderME() {
 const drawn = {};
 function show(state) {
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.state === state)));
-  ["nc", "me"].forEach(s => document.getElementById(s).hidden = s !== state);
-  if (!drawn[state]) { (state === "nc" ? renderNC : renderME)(); drawn[state] = true }
+  ["nc", "me", "ck"].forEach(s => document.getElementById(s).hidden = s !== state);
+  // The Clark County tab is static (charts baked in by ~/clark-early-vote/build.py), so it has nothing to draw.
+  if (!drawn[state]) { if (state === "nc") renderNC(); else if (state === "me") renderME(); drawn[state] = true }
   store.set("tab", state);
 }
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.state));
-show(location.hash === "#me" ? "me" : location.hash === "#nc" ? "nc" : store.get("tab", "nc"));
+const HASHTAB = { "#nc": "nc", "#me": "me", "#ck": "ck", "#clark": "ck" };
+show(HASHTAB[location.hash] || store.get("tab", "nc"));
+// A tab link (#ck) also matches the panel's id; keep the page at the top so the tabs stay in view.
+if (location.hash) window.addEventListener("load", () => setTimeout(() => window.scrollTo(0, 0), 0));
 // Redraw charts on theme change so SVG colors follow the tokens.
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { for (const k in drawn) delete drawn[k]; show(store.get("tab", "nc")) });
 new MutationObserver(() => { for (const k in drawn) delete drawn[k]; show(store.get("tab", "nc")) }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
