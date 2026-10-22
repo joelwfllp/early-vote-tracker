@@ -313,6 +313,10 @@ function renderME() {
   root.innerHTML = `
     <div class="asof"><span class="pill">2026 file as of ${fmtDate(D.asof)}</span><span class="pill">${D.days_out} days out</span><span class="pill">Source: <a href="https://www.maine.gov/sos/elections-voting/voter-data" target="_blank" rel="noopener">Maine SOS statewide absentee voter file</a></span></div>
     <section class="block">
+      <h2>Does the early vote predict the final electorate?</h2>
+      <p class="lede">We tested this in North Carolina, which publishes voter-level history back to 2004: <a href="https://joelwfllp.github.io/early-vote-tracker/nc-early-vote-signal/" target="_blank" rel="noopener">read the NC study</a>. Maine's public data cannot support the same test, because the state does not publish turnout by party.</p>
+    </section>
+    <section class="block">
       <h2 id="me-sdo-h">Absentee ballots per 100k registrants, same days out</h2>
       <p class="lede">Accepted absentee ballots (mail, drop box, and in-person absentee at the clerk's office) per 100k active and inactive registrants in each party and congressional district.</p>
       <div class="controls"><label>District</label><span id="me-cd-t"></span><label>Measure</label><span id="me-unit-t"></span></div>
