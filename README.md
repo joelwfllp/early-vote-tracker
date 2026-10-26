@@ -10,4 +10,8 @@ Daily update:
 4. Republish dashboard.html to the artifact URL above (Claude: Artifact publish with this file path / url).
 5. `git add -A && git commit -m "Update <date>" && git push` (build.py also writes docs/index.html for Pages).
 
+NC study page (docs/nc-early-vote-signal/), also daily, after step 1:
+`cd ~/nc-early-vote/retro && for s in elliott_groups early_years one_prior demo_share stratified stratified_active stratified_active_robust swing_check build_findings_html; do ../.venv/bin/python $s.py; done`
+then `cp ../out/retro_findings.html ~/early-vote-dashboard/docs/nc-early-vote-signal/index.html` before the commit in step 5.
+
 `template.html` is the page; `build.py` injects the data at `/*__DATA__*/null`.
